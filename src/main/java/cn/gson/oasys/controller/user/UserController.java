@@ -16,6 +16,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.validation.BindingResult;
+import javax.validation.Valid;
+import javax.servlet.http.HttpServletRequest;
+
+import cn.gson.oasys.common.formValid.BindingResultVOUtil;
+import cn.gson.oasys.common.formValid.MapToList;
+import cn.gson.oasys.common.formValid.ResultEnum;
+import cn.gson.oasys.common.formValid.ResultVO;
 
 import com.github.pagehelper.util.StringUtil;
 import com.github.stuxuhai.jpinyin.PinyinException;
@@ -86,13 +94,20 @@ public class UserController {
 	}
 	
 	
-	@RequestMapping(value="useredit",method = RequestMethod.GET)
-	public String usereditget(@RequestParam(value = "userid",required=false) Long userid,Model model) {
-		if(userid!=null){
-			User user = udao.findOne(userid);
-			model.addAttribute("where","xg");
-			model.addAttribute("user",user);
-		}
+       @RequestMapping(value="useredit",method = RequestMethod.GET)
+       public String usereditget(@RequestParam(value = "userid",required=false) Long userid,Model model,HttpServletRequest req) {
+               if(!StringUtil.isEmpty((String) req.getAttribute("errormess"))){
+                       model.addAttribute("errormess", req.getAttribute("errormess"));
+                       User user=(User)req.getAttribute("user");
+                       if(user!=null&&user.getUserId()!=null){
+                               model.addAttribute("where","xg");
+                       }
+                       model.addAttribute("user",user);
+               }else if(userid!=null){
+                       User user = udao.findOne(userid);
+                       model.addAttribute("where","xg");
+                       model.addAttribute("user",user);
+               }
 		
 		List<Dept> depts = (List<Dept>) ddao.findAll();
 		List<Position> positions = (List<Position>) pdao.findAll();
@@ -104,20 +119,29 @@ public class UserController {
 		return "user/edituser";
 	}
 	
-	@RequestMapping(value="useredit",method = RequestMethod.POST)
-	public String usereditpost(User user,
-			@RequestParam("deptid") Long deptid,
-			@RequestParam("positionid") Long positionid,
-			@RequestParam("roleid") Long roleid,
-			@RequestParam(value = "isbackpassword",required=false) boolean isbackpassword,
-			Model model) throws PinyinException {
-		System.out.println(user);
-		System.out.println(deptid);
-		System.out.println(positionid);
-		System.out.println(roleid);
-		Dept dept = ddao.findOne(deptid);
-		Position position = pdao.findOne(positionid);
-		Role role = rdao.findOne(roleid);
+       @RequestMapping(value="useredit",method = RequestMethod.POST)
+       public String usereditpost(@Valid User user,BindingResult br,
+                       @RequestParam("deptid") Long deptid,
+                       @RequestParam("positionid") Long positionid,
+                       @RequestParam("roleid") Long roleid,
+                       @RequestParam(value = "isbackpassword",required=false) boolean isbackpassword,
+                       Model model,HttpServletRequest req) throws PinyinException {
+               System.out.println(user);
+               System.out.println(deptid);
+               System.out.println(positionid);
+               System.out.println(roleid);
+               Dept dept = ddao.findOne(deptid);
+               Position position = pdao.findOne(positionid);
+               Role role = rdao.findOne(roleid);
+
+               req.setAttribute("user", user);
+
+               ResultVO res = BindingResultVOUtil.hasErrors(br);
+               if (!ResultEnum.SUCCESS.getCode().equals(res.getCode())) {
+                       List<Object> list = new MapToList<>().mapToList(res.getData());
+                       req.setAttribute("errormess", list.get(0).toString());
+                       return "forward:/useredit";
+               }
 		if(user.getUserId()==null){
 			String pinyin=PinyinHelper.convertToPinyinString(user.getUserName(), "", PinyinFormat.WITHOUT_TONE);
 			user.setPinyin(pinyin);
@@ -149,8 +173,8 @@ public class UserController {
 			udao.save(user2);
 		}
 		
-		model.addAttribute("success",1);
-		return "/usermanage";
+                model.addAttribute("success",1);
+                return "redirect:/usermanage";
 	}
 	
 	
@@ -162,8 +186,8 @@ public class UserController {
 		
 		udao.save(user);
 		
-		model.addAttribute("success",1);
-		return "/usermanage";
+                model.addAttribute("success",1);
+                return "redirect:/usermanage";
 		
 	}
 
